@@ -43,6 +43,12 @@ function randomColor() {
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
+function calculateDistance(x1, y1, x2, y2) {
+  let dx = Math.abs(x1 - x2);
+  let dy = Math.abs(y1 - y2);
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 // Drawing Functions
 function drawLine(x1, y1, x2, y2, color) {
   ctx.beginPath();
@@ -113,16 +119,23 @@ window.addEventListener('keyup', e => {
 
 function gameOver() {
   char.color = 'red';
+  enemyArray = [];
+  projectileArray = [];
+  char = new Character(c.width / 2, c.height / 2, 30, randomColor())
+  if (score > highscore) {
+    highscore = score;
+  }
+  score = 0;
 }
 
 
 // Classes
 class Circle {
-  constructor(x, y, radius) {
+  constructor(x, y, radius, color) {
     this.radius = radius;
     this.x = x || Math.random() * (c.width - this.radius * 2) + this.radius;
     this.y = y || Math.random() * (c.height - this.radius * 2) + this.radius;
-    this.color = 'black';
+    this.color = color || 'black';
   }
 
   draw() {
@@ -135,8 +148,9 @@ class Circle {
 }
 
 class Projectile extends Circle {
-  constructor(x, y, radius, vx, vy) {
+  constructor(id, x, y, radius, vx, vy) {
     super(x, y, radius);
+    this.id = id;
     this.vx = vx * 0.5;
     this.vy = vy * 0.5;
     this.timeActive = 0;
@@ -158,21 +172,32 @@ class Projectile extends Circle {
   }
 
   detectCollision() {
-    let dx = Math.abs(char.x - this.x);
-    let dy = Math.abs(char.y - this.y);
-    let distance = Math.sqrt(dx * dx + dy * dy);
+    const that = this;
+    let charDistance = calculateDistance(char.x, char.y, this.x, this.y);
 
-    if (distance - this.radius - char.radius <= 0 && this.timeActive > 5) {
+    if (charDistance - this.radius - char.radius <= 0 && this.timeActive > 5) {
       gameOver();
+    }
+    for (let i = 0; i < enemyArray.length; i++) {
+      let enemy = enemyArray[i];
+      let enDistance = calculateDistance(enemy.x, enemy.y, this.x, this.y);
+
+      if (enDistance - this.radius - enemy.radius <= 0) {
+        enemyArray.splice(i, 1);
+        projectileArray = projectileArray.filter(function(obj) {
+          return obj.id !== that.id;
+      });
+      }
     }
   }
 }
 
 
 class Character extends Circle {
-  constructor(x, y, radius) {
-    super(x, y, radius);
+  constructor(x, y, radius, color) {
+    super(x, y, radius, color);
     this.moveSpeed = 5;
+    this.projectileIDTracker = 0;
   }
 
   shoot() {
@@ -191,26 +216,35 @@ class Character extends Circle {
     }
 
     projectileArray.push(new Projectile(
-      this.x, this.y, 5, vx, -vy
+      this.projectileIDTracker, this.x, this.y, 5, vx, -vy
     ))
+    this.projectileIDTracker ++;
   }
 
   move() {
     if ( keydownArray[0] ) {
       // Move up
-      this.y -= this.moveSpeed;
+      if (this.y - this.radius > 0) {
+        this.y -= this.moveSpeed;
+      }
     }
     if( keydownArray[1]) {
       // Move down
-      this.y += this.moveSpeed;
+      if (this.y + this.radius < c.height) {
+        this.y += this.moveSpeed;
+      }
     }
     if ( keydownArray[2]) {
       // Move left
-      this.x -= this.moveSpeed;
+      if (this.x - this.radius > 0) {
+        this.x -= this.moveSpeed;
+      } 
     }
     if ( keydownArray[3] ) {
       // Move right
-      this.x += this.moveSpeed;
+      if (this.x + this.radius < c.width) {
+        this.x += this.moveSpeed;
+      }
     }
   }
 
@@ -220,8 +254,42 @@ class Character extends Circle {
   }
 }
 
-function Reticle(char) {
-  this.char = char;
+class Enemy extends Circle {
+  constructor(x, y, radius, color, vx, vy) {
+    super(x, y, radius, color);
+    this.vx = 3;
+    this.vy = 3;
+  }
+
+  move() {
+    if (char.x > this.x) {
+      this.x += this.vx;
+    } else if (char.x < this.x) {
+      this.x -= this.vx;
+    }
+
+    if (char.y > this.y) {
+      this.y += this.vy;
+    } else if (char.y < this.y) {
+      this.y -= this.vy;
+    }
+  }
+
+  detectCollision() {
+    let distance = calculateDistance(char.x, char.y, this.x, this.y);
+    if (distance - this.radius - char.radius <= 0) {
+      gameOver();
+    }
+  }
+
+  update() {
+    this.move();
+    this.detectCollision();
+    this.draw();
+  }
+}
+
+function Reticle() {
   this.radius = 15;
 
   this.update = () => {
@@ -229,13 +297,6 @@ function Reticle(char) {
   }
 
   this.draw = () => {
-    // let dx = Math.abs(mouse.x - this.char.x);
-    // let dy = Math.abs(mouse.y - this.char.y);
-    // let theta = Math.PI /2 - Math.atan2(dy, dx);
-    // let adj = this.radius * Math.cos(theta);
-    // let opp = this.radius * Math.sin(theta);
-
-    // drawLine(this.char.x, this.char.y, mouse.x - opp, mouse.y + adj, 'rgba(0, 0, 0, 0.5)');
     drawCircle(mouse.x, mouse.y, this.radius);
     drawLine(mouse.x - (this.radius * 3/2 ), mouse.y, mouse.x - (this.radius * 1/2), mouse.y);
     drawLine(mouse.x + (this.radius * 3/2 ), mouse.y, mouse.x + (this.radius * 1/2), mouse.y);
@@ -245,19 +306,41 @@ function Reticle(char) {
 }
 
 
-var char = new Character(c.width / 2, c.height / 2, 30);
-var ret = new Reticle(char);
+var char = new Character(c.width / 2, c.height / 2, 30, randomColor());
+
+var reticle = new Reticle(char);
 var projectileArray = [];
+var enemyArray = [];
+var score = 0;
+var highscore = 0;
+
+var enemySpawn = setInterval(spawnEnemy, 3000);
+function spawnEnemy() {
+  enemyArray.push(new Enemy(
+    Math.random() * c.width,
+    Math.random() * c.height,
+    20,
+    'red'
+  ));
+}
 
 function animate() {
   requestAnimationFrame(animate);
+  score ++;
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = "black";
+  ctx.font = "18px Arial";
+  ctx.fillText("Highscore: " + highscore, 50, 25);
+  ctx.fillText("Score: " + score, 50, 50);
   char.update();
-  ret.update();
   for (let i = 0; i < projectileArray.length; i++) {
     projectileArray[i].update();
+  };
+  for (let i=0; i< enemyArray.length; i++) {
+    enemyArray[i].update();
   }
+  reticle.update();
 }
 
 function init() {
