@@ -192,11 +192,19 @@ class Projectile extends Circle {
   }
 }
 
+function calculateXYDisplacement(theta, hyp) {
+  let dx = hyp * Math.cos(theta);
+  let dy = hyp * Math.sin(theta);
+  return {dx: dx, dy: dy};
+}
+
 
 class Character extends Circle {
   constructor(x, y, radius, color) {
     super(x, y, radius, color);
     this.moveSpeed = 5;
+    this.diagonalDisplacement = Math.abs(calculateXYDisplacement(this.moveSpeed * Math.PI / 4, this.moveSpeed).dx);
+
     this.projectileIDTracker = 0;
   }
 
@@ -221,31 +229,67 @@ class Character extends Circle {
     this.projectileIDTracker ++;
   }
 
+  moveUp(speed) {
+    if ( this.y - this.radius > 0 ) {
+      this.y -= speed;
+    }
+  }
+
+  moveRight(speed) {
+    if (this.x + this.radius < c.width) {
+      this.x += speed;
+    }
+  }
+
+  moveLeft(speed) {
+    if (this.x - this.radius > 0) {
+      this.x -= speed;
+    } 
+  }
+
+  moveDown(speed) {
+    if (this.y + this.radius < c.height) {
+      this.y += speed;
+    }
+  }
+
   move() {
-    if ( keydownArray[0] ) {
-      // Move up
-      if (this.y - this.radius > 0) {
-        this.y -= this.moveSpeed;
+    const up = keydownArray[0];
+    const down = keydownArray[1];
+    const left = keydownArray[2];
+    const right = keydownArray[3];
+
+    if ( up && right ) {
+      this.moveUp(this.diagonalDisplacement);
+      this.moveRight(this.diagonalDisplacement);
+    } else if ( up && left ) {
+      this.moveUp(this.diagonalDisplacement);
+      this.moveLeft(this.diagonalDisplacement);
+    } else if (down && right) {
+      this.moveDown(this.diagonalDisplacement);
+      this.moveRight(this.diagonalDisplacement);
+    } else if ( down && left ) {
+      this.moveDown(this.diagonalDisplacement);
+      this.moveLeft(this.diagonalDisplacement)
+    } 
+    
+    else {
+      // Vertical Movement
+      if ( up ) {
+        this.moveUp(this.moveSpeed);
+      }
+      if( down ) {
+        this.moveDown(this.moveSpeed);
+      }
+      // Horizontal Movement
+      if ( left ) {
+        this.moveLeft(this.moveSpeed);
+      }
+      if ( right ) {
+        this.moveRight(this.moveSpeed);
       }
     }
-    if( keydownArray[1]) {
-      // Move down
-      if (this.y + this.radius < c.height) {
-        this.y += this.moveSpeed;
-      }
-    }
-    if ( keydownArray[2]) {
-      // Move left
-      if (this.x - this.radius > 0) {
-        this.x -= this.moveSpeed;
-      } 
-    }
-    if ( keydownArray[3] ) {
-      // Move right
-      if (this.x + this.radius < c.width) {
-        this.x += this.moveSpeed;
-      }
-    }
+    
   }
 
   update() {
@@ -314,12 +358,43 @@ var enemyArray = [];
 var score = 0;
 var highscore = 0;
 
-var enemySpawn = setInterval(spawnEnemy, 3000);
+var enemySpawn = setInterval(spawnEnemy, 1000);
+var enemyRadius = 20;
+
+function generateSpawnPoint() {
+  var side = Math.floor(Math.random() * 4);
+  if (side === 0) {
+    // left side
+    return {
+      x: -enemyRadius,
+      y: Math.random() * c.height
+    }
+  } else if (side === 1) {
+    // right side
+    return {
+      x: c.width + enemyRadius,
+      y: Math.random() * c.height
+    }
+  } else if (side === 2) {
+    // up side
+    return {
+      x: Math.random() * c.width,
+      y: -enemyRadius
+    }
+  } else if (side === 3) {
+    // down side
+    return {
+      x: Math.random() * c.width,
+      y: c.height + enemyRadius
+    }
+  }
+} 
 function spawnEnemy() {
+  let spawnLocation = generateSpawnPoint();
   enemyArray.push(new Enemy(
-    Math.random() * c.width,
-    Math.random() * c.height,
-    20,
+    spawnLocation.x,
+    spawnLocation.y,
+    enemyRadius,
     'red'
   ));
 }
