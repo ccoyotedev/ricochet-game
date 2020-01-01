@@ -122,10 +122,10 @@ function gameOver() {
   enemyArray = [];
   projectileArray = [];
   char = new Character(c.width / 2, c.height / 2, 30, randomColor())
-  if (score > highscore) {
-    highscore = score;
+  if (game.score > game.highscore) {
+    game.highscore = game.score;
   }
-  score = 0;
+  game.score = 0;
 }
 
 
@@ -203,7 +203,7 @@ class Character extends Circle {
   constructor(x, y, radius, color) {
     super(x, y, radius, color);
     this.moveSpeed = 5;
-    this.diagonalDisplacement = Math.abs(calculateXYDisplacement(this.moveSpeed * Math.PI / 4, this.moveSpeed).dx);
+    this.diagonalDisplacement = calculateXYDisplacement(this.moveSpeed * Math.PI / 4, this.moveSpeed).dx;
 
     this.projectileIDTracker = 0;
   }
@@ -229,27 +229,15 @@ class Character extends Circle {
     this.projectileIDTracker ++;
   }
 
-  moveUp(speed) {
-    if ( this.y - this.radius > 0 ) {
-      this.y -= speed;
-    }
-  }
-
-  moveRight(speed) {
-    if (this.x + this.radius < c.width) {
-      this.x += speed;
-    }
-  }
-
-  moveLeft(speed) {
-    if (this.x - this.radius > 0) {
-      this.x -= speed;
-    } 
-  }
-
-  moveDown(speed) {
-    if (this.y + this.radius < c.height) {
+  moveVerticle(speed) {
+    if (speed < 0 && this.y - this.radius > 0 || speed > 0 && this.y + this.radius < c.height) {
       this.y += speed;
+    }
+  }
+
+  moveHorizontal(speed) {
+    if (speed > 0 && this.x + this.radius < c.width || speed < 0 && this.x - this.radius > 0) {
+      this.x += speed;
     }
   }
 
@@ -259,34 +247,35 @@ class Character extends Circle {
     const left = keydownArray[2];
     const right = keydownArray[3];
 
+    // Diagonal Movement
     if ( up && right ) {
-      this.moveUp(this.diagonalDisplacement);
-      this.moveRight(this.diagonalDisplacement);
+      this.moveVerticle(this.diagonalDisplacement);
+      this.moveHorizontal(-this.diagonalDisplacement);
     } else if ( up && left ) {
-      this.moveUp(this.diagonalDisplacement);
-      this.moveLeft(this.diagonalDisplacement);
+      this.moveVerticle(this.diagonalDisplacement);
+      this.moveHorizontal(this.diagonalDisplacement);
     } else if (down && right) {
-      this.moveDown(this.diagonalDisplacement);
-      this.moveRight(this.diagonalDisplacement);
+      this.moveVerticle(-this.diagonalDisplacement);
+      this.moveHorizontal(-this.diagonalDisplacement);
     } else if ( down && left ) {
-      this.moveDown(this.diagonalDisplacement);
-      this.moveLeft(this.diagonalDisplacement)
+      this.moveVerticle(-this.diagonalDisplacement);
+      this.moveHorizontal(this.diagonalDisplacement)
     } 
     
     else {
       // Vertical Movement
       if ( up ) {
-        this.moveUp(this.moveSpeed);
+        this.moveVerticle(-this.moveSpeed);
       }
       if( down ) {
-        this.moveDown(this.moveSpeed);
+        this.moveVerticle(this.moveSpeed);
       }
       // Horizontal Movement
       if ( left ) {
-        this.moveLeft(this.moveSpeed);
+        this.moveHorizontal(-this.moveSpeed);
       }
       if ( right ) {
-        this.moveRight(this.moveSpeed);
+        this.moveHorizontal(this.moveSpeed);
       }
     }
     
@@ -299,24 +288,25 @@ class Character extends Circle {
 }
 
 class Enemy extends Circle {
-  constructor(x, y, radius, color, vx, vy) {
+  constructor(x, y, radius, color, moveSpeed) {
     super(x, y, radius, color);
-    this.vx = 3;
-    this.vy = 3;
+    this.moveSpeed = moveSpeed || 3;
+  }
+
+  moveVerticle(speed) {
+    this.y += speed;
+  }
+
+  moveHorizontal(speed) {
+    this.x += speed;
   }
 
   move() {
-    if (char.x > this.x) {
-      this.x += this.vx;
-    } else if (char.x < this.x) {
-      this.x -= this.vx;
-    }
-
-    if (char.y > this.y) {
-      this.y += this.vy;
-    } else if (char.y < this.y) {
-      this.y -= this.vy;
-    }
+    let dx = char.x - this.x;
+    let dy = char.y - this.y;
+    let theta = Math.atan2(dy, dx);
+    this.moveVerticle(calculateXYDisplacement(theta, this.moveSpeed).dy);
+    this.moveHorizontal(calculateXYDisplacement(theta, this.moveSpeed).dx);
   }
 
   detectCollision() {
@@ -349,7 +339,26 @@ function Reticle() {
   }
 }
 
+class Game {
+  constructor(highscore) {
+    this.highscore = highscore || 0,
+    this.score = 0
+  }
 
+  drawScoreBoard() {
+    ctx.fillStyle = "black";
+    ctx.font = "18px Arial";
+    ctx.fillText("Highscore: " + this.highscore, 50, 25);
+    ctx.fillText("Score: " + this.score, 50, 50);
+  }
+
+  update() {
+    this.drawScoreBoard();
+    this.score ++;
+  }
+}
+
+var game = new Game();
 var char = new Character(c.width / 2, c.height / 2, 30, randomColor());
 
 var reticle = new Reticle(char);
@@ -358,7 +367,7 @@ var enemyArray = [];
 var score = 0;
 var highscore = 0;
 
-var enemySpawn = setInterval(spawnEnemy, 1000);
+var enemySpawn = setInterval(spawnEnemy, 2000);
 var enemyRadius = 20;
 
 function generateSpawnPoint() {
@@ -401,13 +410,11 @@ function spawnEnemy() {
 
 function animate() {
   requestAnimationFrame(animate);
-  score ++;
+
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, c.width, c.height);
-  ctx.fillStyle = "black";
-  ctx.font = "18px Arial";
-  ctx.fillText("Highscore: " + highscore, 50, 25);
-  ctx.fillText("Score: " + score, 50, 50);
+
+  game.update();
   char.update();
   for (let i = 0; i < projectileArray.length; i++) {
     projectileArray[i].update();
@@ -417,6 +424,7 @@ function animate() {
   }
   reticle.update();
 }
+
 
 function init() {
   animate();
