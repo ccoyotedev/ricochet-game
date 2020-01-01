@@ -118,14 +118,10 @@ window.addEventListener('keyup', e => {
 })
 
 function gameOver() {
-  char.color = 'red';
   enemyArray = [];
   projectileArray = [];
   char = new Character(c.width / 2, c.height / 2, 30, randomColor())
-  if (game.score > game.highscore) {
-    game.highscore = game.score;
-  }
-  game.score = 0;
+  game.reset();
 }
 
 
@@ -342,7 +338,21 @@ function Reticle() {
 class Game {
   constructor(highscore) {
     this.highscore = highscore || 0,
-    this.score = 0
+    this.score = 0,
+    this.level = 1,
+    this.enemySpawnRate = 1500,
+    this.enemySpawn = setInterval(spawnEnemy, this.enemySpawnRate)
+  }
+
+  reset() {
+    if (this.score > this.highscore) {
+      this.highscore = this.score;
+    }
+    this.score = 0,
+    this.level = 1,
+    clearInterval(this.enemySpawn),
+    this.enemySpawnRate = 1500,
+    this.enemySpawn = setInterval(spawnEnemy, this.enemySpawnRate)
   }
 
   drawScoreBoard() {
@@ -352,9 +362,32 @@ class Game {
     ctx.fillText("Score: " + this.score, 50, 50);
   }
 
+  drawLevel() {
+    ctx.fillStyle = "#f0f0f0";
+    ctx.font = "48px Arial";
+    ctx.fillText("Level " + this.level, c.width / 2 - 75, c.height / 2);
+  }
+
+  updateLevel() {
+    this.level ++;
+    if (this.enemySpawnRate > 100) {
+      this.enemySpawnRate -= 100;
+      clearInterval(this.enemySpawn);
+      this.enemySpawn = setInterval(spawnEnemy, this.enemySpawnRate);
+    }
+  }
+
+  updateScore() {
+    this.score ++;
+    if (this.score - this.level * 500 === 0) {
+      this.updateLevel();
+    }
+  }
+
   update() {
     this.drawScoreBoard();
-    this.score ++;
+    this.drawLevel();
+    this.updateScore();
   }
 }
 
@@ -364,10 +397,7 @@ var char = new Character(c.width / 2, c.height / 2, 30, randomColor());
 var reticle = new Reticle(char);
 var projectileArray = [];
 var enemyArray = [];
-var score = 0;
-var highscore = 0;
 
-var enemySpawn = setInterval(spawnEnemy, 2000);
 var enemyRadius = 20;
 
 function generateSpawnPoint() {
@@ -397,7 +427,8 @@ function generateSpawnPoint() {
       y: c.height + enemyRadius
     }
   }
-} 
+}
+
 function spawnEnemy() {
   let spawnLocation = generateSpawnPoint();
   enemyArray.push(new Enemy(
